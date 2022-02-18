@@ -26,7 +26,7 @@ def get_gnd_info(gndId, i = 0):
 
 def update_command(table_name, updates):
     """Returns update command for dictlist of form 
-    [ { uid: [ { key: key, val:val, typ: str }, ... ] }, ... ] """
+    [ { uid: [ { key: key, val: val, typ: str|int }, ... ] }, ... ] """
 
     def decode_val(key, val, typ = 'str'):
         if typ == 'str':
@@ -44,10 +44,21 @@ def update_command(table_name, updates):
 
 def insert_command(table_name, keys, values):
     """Returns insert command, values must have form
-    [ [ val1, val2, ... ], ... ]"""
+    [ [ { typ: str|int, val: val }, ... ], ... ]"""
 
     def list_to_comma(l):
-        return ", ".join(l)
+        def decode_val(v):
+            quot = "'"
+            escquot = "\\\'"
+            if v['val'] is None:
+                return ""
+            if v['typ'] == 'str':
+                return f"'{v['val'].replace(quot, escquot)}'"
+            if v['typ'] == 'row':
+                return f"`{v['val']}`"
+            return v['val']
+
+        return ", ".join([ decode_val(v) for v in l ])
 
     def parenthesize(l):
         return f"({list_to_comma(l)})"

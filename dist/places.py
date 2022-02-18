@@ -1,6 +1,10 @@
+"""This module defines a main method which takes a person table
+and returns sql commands for adding person relevant places"""
 import mvdb_lib as lib
 
 class PersonList:
+    """Reads persons to list and provides functionality to
+    generate a list of related places and write sql commands"""
     persons = []
     place_list = None
 
@@ -25,18 +29,33 @@ class PersonList:
             [ { "key": "place_of_birth", "val": get_uid(p.place_of_birth), "typ": "int" },
                 { "key": "place_of_death", "val": get_uid(p.place_of_death), "typ": "int" } ] }
                 for p in self.persons ]
-        insert_values = [ [ person.uid, str(place.uid) ] 
+        insert_values = [ 
+            [ { "typ": "int", "val": person.uid }, { "typ": "int", "val": str(place.uid) } ] 
             for person in self.persons
-            for place in person.places_of_activity ]
-        #insert_values = [ item for item in sublist for sublist in insert_values ]
-        insert_keys = [ "uid_local", "uid_foreign" ]
-        #insert_keys = [ [ person.uid for _ in person.places_of_activity ]
-            #for person in self.persons ][0]
-        place_inserts_values = [ [ str(place.uid), place.name, 
-            place.alt_names, place.alt_names, str(place.N), str(place.E) ]
+            for place in person.places_of_activity
+            if place ]
+        insert_keys = [ 
+            { "typ": "row", "val": "uid_local" }, 
+            { "typ": "row", "val": "uid_foreign"}
+        ]
+        place_inserts_values = [ 
+            [
+                { "typ": "int", "val": str(place.uid) }, 
+                { "typ": "str", "val": place.name},
+                { "typ": "str", "val": place.alt_names}, 
+                { "typ": "str", "val": place.gnd_id}, 
+                { "typ": "int", "val": str(place.N)}, 
+                { "typ": "int", "val": str(place.E)} 
+            ]
             for place in self.place_list.places ]
-        place_inserts_keys = [ "uid", "name", "alt_names", 
-            "gnd_id", "latitude", "longitude" ]
+        place_inserts_keys = [ 
+            { "typ": "row", "val": "uid" },
+            { "typ": "row", "val": "name" },
+            { "typ": "row", "val": "alt_names" },
+            { "typ": "row", "val": "gnd_id" },
+            { "typ": "row", "val": "latitude" },
+            { "typ": "row", "val": "longitude" }
+        ]
 
         update_command = lib.update_command("tx_publisherdb_domain_model_person", updates)
         #insert_command = "\n".join( [ 
@@ -88,7 +107,7 @@ class Person:
                 self.place_of_death = place_list.addPlace(place_of_death_ids[0])
 
             places_of_activity_ids = [ get_id(cell) for cell in gnd_person['551']
-                if is_place("Sterbeort", cell) ]
+                if is_place("Wirkungsort", cell) ]
             self.places_of_activity = [ place_list.addPlace(place)
                 for place in places_of_activity_ids ]
 
@@ -98,6 +117,8 @@ class PlaceList:
     places = []
 
     def addPlace(self, place_gndid):
+        if not place_gndid:
+            return None
         if place_gndid not in self.gnd_ids:
             self.max_uid += 1
             self.places.append(Place(self.max_uid, place_gndid))
@@ -122,9 +143,9 @@ class Place:
 
     def getGnd(self):
         def is_coord(c):
-            return { 9: "A:dgx" } in [ cell for cell in c['__'] ]
+            return { '9': "A:dgx" } in [ cell for cell in c['__'] ]
         def get_coord(c, key):
-            string = [ cell[key] for cell in c['__'] if key in cell.keys() ]
+            string = [ cell[key] for cell in c['__'] if key in cell.keys() ][0]
             numeric = float(string[1:])
             if string[0] == 'N' or string[0] == 'E':
                 return numeric
@@ -141,7 +162,7 @@ class Place:
 
             E = [ get_coord(c, 'd') for c in gnd_place['034'] if is_coord(c) ]
             if E:
-                self.E = N[0]
+                self.E = E[0]
 
         if '451' in gnd_place.keys():
             self.alt_names = "$".join([ c['__'][0]['a'] for c in gnd_place['451']
